@@ -16,127 +16,68 @@
 #define BIN_3 10
 #define AIN_4 11
 
+xQueueHandle queue;
+SemaphoreHandle_t semaphore = NULL;
+SemaphoreHandle_t semaphoreMutex = NULL;
+int index = 0;
+//byte moving[index];
+
 
 extern HardwareSerial Serial;
 
 char blueToothVal;
 char lastValue;
 
-//SemaphoreHandle_t semaphore = NULL;
-//SemaphoreHandle_t semaphoreFull = NULL;
-//SemaphoreHandle_t semaphoreEmpty = NULL;
-//SemaphoreHandle_t semaphoreMutex = NULL;
-
-
-//unsigned long lastTime = 0;
-//unsigned long currentTime;
-
-//#define bufferSize 4
-//int arrayBuffer[bufferSize];
-//int prodIndex = 0;
-//int consIndex = 0 ;
-
-//static signed portBASE_TYPE xHigherPriorityTaskWoken;
-
-
-//void INT0_ISR() {
-//	xHigherPriorityTaskWoken = pdFALSE;
-//	currentTime = millis();
-//	if (currentTime - lastTime > 300) {
-//		lastTime = currentTime;
-//		/* Unblock the task by releasing the semaphore. */
-//		xSemaphoreGiveFromISR( semaphore, &xHigherPriorityTaskWoken );
-//	}
-//	taskYIELD();
-//}
-//
-//void producer(void *p) {
-//	for(;;){
-//		if( xSemaphoreTake( semaphore, (TickType_t) portMAX_DELAY) == pdTRUE ) {
-//			if(xSemaphoreTake(semaphoreFull, (TickType_t) portMAX_DELAY) == pdTRUE){
-//				if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE)
-//				{
-//					arrayBuffer[prodIndex] = analogRead(POTENTIOMETER);
-//					prodIndex = (prodIndex + 1)%4;
-//					xSemaphoreGive(semaphoreMutex);
-//					xSemaphoreGive(semaphoreEmpty);
-//				}
-//
-//			}
-//		}
-//
-//	}
-//}
-//
-//void consumer(void *p) {
-//	for(;;){
-//		if(xSemaphoreTake(semaphoreEmpty, (TickType_t) portMAX_DELAY) == pdTRUE)
-//		{
-//			if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE){
-//				//Read from circular buffer
-//				int valuePrint = arrayBuffer[consIndex];
-//				consIndex = (consIndex + 1)%4;
-//				Serial.println(valuePrint);
-//
-//				xSemaphoreGive(semaphoreMutex);
-//				xSemaphoreGive(semaphoreFull);
-//			}
-//
-//		}
-//		vTaskDelay(TASK_PERIOD);
-//	}
-//}
-
 void connectionEstablishedVisual(){
 	byte pattern = B11000000;
-	digitalWrite(LATCH,LOW);   
-    shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,moving[index]);  
-    digitalWrite(LATCH,HIGH); 
+	digitalWrite(LATCH,LOW);
+    shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,moving[index]);
+    digitalWrite(LATCH,HIGH);
     digitalWrite(LATCH, LOW);
 }
+
 void movingModeVisual(){
   byte moving[]=
-  {   
-  B00000001,   
-  B00000010,   
-  B00000100,   
-  B00001000,   
-  B00010000,   
-  B00100000,   
-  B01000000,   
-  B10000000,   
-  B01000000,   
-  B00100000,   
-  B00010000,   
-  B00001000,   
-  B00000100,   
-  B00000010, 
-  }; 
+  {
+	  B00000001,
+	  B00000010,
+	  B00000100,
+	  B00001000,
+	  B00010000,
+	  B00100000,
+	  B01000000,
+	  B10000000,
+	  B01000000,
+	  B00100000,
+	  B00010000,
+	  B00001000,
+	  B00000100,
+	  B00000010,
+  };
+
   int index = 0;
   unsigned long count = 0;
   int rearstate = 0;
-  while(1)
-  {
+
+  while(1) {
     count += 100;
-     digitalWrite(LATCH,LOW);   
-    shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,moving[index]);  
-    digitalWrite(LATCH,HIGH);   
-    index++;   
-    if(index >= 14)     
+     digitalWrite(LATCH,LOW);
+    shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,moving[index]);
+    digitalWrite(LATCH,HIGH);
+    index++;
+    if(index >= 14)
       index=0;
-    if(count % 500 == 0)
-    {
+    if(count % 500 == 0) {
       if(rearstate == 0){
         digitalWrite(REARLED_PIN, HIGH);
         rearstate = 1;
       }
-      else
-      {
+      else {
         digitalWrite(REARLED_PIN, LOW);
         rearstate = 0;
       }
-    }   
-    delay(100);   
+    }
+    delay(100);
   }
 }
 
@@ -149,9 +90,9 @@ void stopModeVisual(){
     count += 50;
     if(count % 100 == 0)
     {
-      digitalWrite(LATCH,LOW);   
-      shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,pattern);  
-      digitalWrite(LATCH,HIGH); 
+      digitalWrite(LATCH,LOW);
+      shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,pattern);
+      digitalWrite(LATCH,HIGH);
     }
     if(count % 250 == 0)
     {
@@ -164,8 +105,8 @@ void stopModeVisual(){
         digitalWrite(REARLED_PIN, LOW);
         rearstate = 0;
       }
-    }   
-    delay(50);   
+    }
+    delay(50);
   }
 }
 
@@ -179,6 +120,7 @@ void beep(int note, int duration) {
     delayMicroseconds(period);
   }
 }
+
 void ConnectionEstablished() {
   beep(659, 250);
   beep(659, 250);
@@ -203,74 +145,75 @@ void ConnectionEstablished() {
   beep(587, 250);
   beep(659, 750);
 }
+
 void BabyShark() {
   beep(587, 250);
-  beep(659, 250);    
-  beep(784, 375);
-  beep(784, 375);
-  beep(784, 375);  
+  beep(659, 250);
   beep(784, 375);
   beep(784, 375);
   beep(784, 375);
-  beep(784, 375);
-  beep(587, 250);
-  beep(659, 250);    
-  beep(784, 375);
-  beep(784, 375);
-  beep(784, 375);  
   beep(784, 375);
   beep(784, 375);
   beep(784, 375);
   beep(784, 375);
   beep(587, 250);
-  beep(659, 250);    
+  beep(659, 250);
   beep(784, 375);
   beep(784, 375);
-  beep(784, 375);  
+  beep(784, 375);
+  beep(784, 375);
+  beep(784, 375);
+  beep(784, 375);
+  beep(784, 375);
+  beep(587, 250);
+  beep(659, 250);
+  beep(784, 375);
+  beep(784, 375);
+  beep(784, 375);
   beep(784, 375);
   beep(784, 375);
   beep(784, 375);
   beep(784, 375);
   beep(784, 250);
   beep(784, 250);
-  beep(740, 375);    
+  beep(740, 375);
 }
 
 void EndTune() {
-  beep(659, 375); 
-  beep(698, 375); 
-  beep(698, 375); 
-  beep(698, 375); 
-  beep(698, 375); 
-  beep(659, 375); 
-  beep(698, 375); 
-  beep(784, 375);
-  beep(698, 375); 
-  beep(698, 375); 
   beep(659, 375);
   beep(698, 375);
   beep(698, 375);
-  beep(698, 375); 
+  beep(698, 375);
+  beep(698, 375);
+  beep(659, 375);
+  beep(698, 375);
+  beep(784, 375);
+  beep(698, 375);
+  beep(698, 375);
+  beep(659, 375);
+  beep(698, 375);
+  beep(698, 375);
+  beep(698, 375);
   beep(698, 375);
   beep(659, 250);
   beep(698, 250);
   beep(784, 375);
   beep(698, 375);
-  beep(659, 250);  
+  beep(659, 250);
   beep(698, 250);
   beep(587, 375);
-  beep(698, 375);  
+  beep(698, 375);
   beep(698, 375);
   beep(698, 250);
   beep(659, 250);
   beep(659, 250);
   beep(523, 375);
   beep(523, 250);
-  beep(523, 250);    
+  beep(523, 250);
   beep(587, 375);
 }
 
-void tSerial() {
+void tSerial(void *p) {
   if(Serial.available()) {
     blueToothVal = Serial.read();
   }
@@ -311,36 +254,70 @@ void tSerial() {
       //Stop
   }
 
+  for(;;){
+  		if(xSemaphoreTake(semaphore, (TickType_t) 10) == pdTRUE) {
+  			int toRead = blueToothVal;
+  			xQueueSendToBack(queue, (void *) &toRead, (TickType_t) 10);
+  			vTaskDelay(1);
+  		}
+  	}
+
   delay(1000);
 }
 
 
-void tLED(void *p){
-	
-	
+void tLED(void *p) {
+	portTickType xNextTickTime;
+	xNextTickTime = xTaskGetTickCount();
+	for(;;) {
+		int valueRun;
+		xQueueReceive(queue, &valueRun, (TickType_t) 10);
+		if(valueRun == 'O' || valueRun == 'P' || valueRun == '-' || valueRun == '.'
+			|| valueRun == 'Z' || valueRun == '[') {
+			movingModeVisual();
+		}
+		else {
+			stopModeVisual();
+		}
+		//Serial.println(valuePrint);
+		vTaskDelayUntil(&xNextTickTime, 1000); //1000 is arbitrary value, need to find actual value
+	}
 }
 
 void tAudio(void *p){
-	
+	portTickType xNextTickTime;
+	xNextTickTime = xTaskGetTickCount();
+	for(;;) {
+		int valueRun;
+		xQueueReceive(queue, &valueRun, (TickType_t) 10);
+		if(valueRun == 'z') {
+			EndTune();
+		}
+		//Serial.println(valuePrint);
+		vTaskDelayUntil(&xNextTickTime, 1000); //1000 is arbitrary value, need to find actual value
+	}
 }
 
 void setup(){
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(CLOCK_SHIFTREG,OUTPUT);   
-  pinMode(LATCH,OUTPUT);   
+  pinMode(CLOCK_SHIFTREG,OUTPUT);
+  pinMode(LATCH,OUTPUT);
   pinMode(DATA,OUTPUT);
   Serial.begin(9600);
+  queue = xQueueCreate(STACK_SIZE, sizeof(int));
+  semaphore = xSemaphoreCreateBinary();
+//  attachInterrupt(0, INT0_ISR, RISING);
 //	Serial.begin(115200);
 //	attachInterrupt(0, INT0_ISR, RISING);
-//	semaphore = xSemaphoreCreateBinary();
 //	semaphoreFull = xSemaphoreCreateCounting(4, 4);
 //	semaphoreEmpty = xSemaphoreCreateCounting(4,0);
 //	semaphoreMutex = xSemaphoreCreateMutex();
-
 }
 
 void loop() {
-	xTaskCreate(producer, "Producer", STACK_SIZE, (void * ) 1, 1, NULL);
-	xTaskCreate(consumer, "Consumer", STACK_SIZE, (void * ) 1, 1, NULL);
+	xTaskCreate(tSerial, "Producer", STACK_SIZE, (void * ) 1, 1, NULL);
+	xTaskCreate(tAudio, "ConsumerAudio", STACK_SIZE, (void * ) 1, 1, NULL);
+	xTaskCreate(tLED, "ConsumerLED", STACK_SIZE, (void * ) 1, 1, NULL);
 	vTaskStartScheduler();
 }
+
