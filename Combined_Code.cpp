@@ -44,70 +44,60 @@ void tSerial(void *p) {
 		if(Serial.available()) {
 			if( xSemaphoreTake( semaphore, (TickType_t) portMAX_DELAY) == pdTRUE ) {
 					blueToothVal = Serial.read();
-					arrayBuffer[prodIndex] = blueToothVal;
-					prodIndex = (prodIndex + 1)%4;
-					xSemaphoreGive(semaphore);
+					xQueueSendToBack(queue, (void *) &toRead, (TickType_t) 10);
+					vTaskDelay(1);
 				}
 			}
 		}
 
 }
 
-  if(blueToothVal == 'n') {
-//    digitalWrite(13, HIGH);
-//    if(lastValue != 'n') {
-//      Serial.println(F("LED is on."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'f') {
-//    digitalWrite(13, LOW);
-//    if(lastValue != 'f') {
-//      Serial.println(F("LED is off."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'O') {
-      //Forwards
-  }
-  else if(blueToothVal == 'P') {
-      //go backwards
-  }
-  else if(blueToothVal == '-') {
-      //turn 45 degrees Left
-  }
-  else if(blueToothVal == '.') {
-      //turn 45 degrees Right
-  }
-  else if(blueToothVal == 'Z') {
-      //Turn 90 degrees Left
-  }
-  else if(blueToothVal == '[') {
-      //turn 90 degrees Right
-  }
-  else if(blueToothVal == 'z') {
-      //Stop
-  }
-
-  delay(1000);
+void moveForward(){
+	 analogWrite(BIN_1, 240);
+      analogWrite(AIN_2, 240);
+      analogWrite(BIN_3, 240);
+      analogWrite(AIN_4, 240);
+     delay(100);
 }
 
-void consumer(void *p) {
+void moveLeft(){
+	analogWrite(BIN_1, MAX_PWM_VOLTAGE);
+	analogWrite(AIN_2, 0);
+    analogWrite(BIN_3, MAX_PWM_VOLTAGE);
+    analogWrite(AIN_4, 0);
+    delay(100);    
+}
+
+void moveRight(){
+	analogWrite(BIN_1, 0);
+    analogWrite(AIN_2, MAX_PWM_VOLTAGE);
+    analogWrite(BIN_3, 0);
+    analogWrite(AIN_4, MAX_PWM_VOLTAGE);
+    delay(100);
+}
+
+void stop(){
+	analogWrite(BIN_1, 0);
+    analogWrite(AIN_2, 0);
+    analogWrite(BIN_3, 0);
+    analogWrite(AIN_4, 0);
+    delay(100);
+}
+
+void tMotorControl(void *p) {
 	for(;;){
-		if(xSemaphoreTake(semaphoreEmpty, (TickType_t) portMAX_DELAY) == pdTRUE)
-		{
-			if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE){
 				//Read from circular buffer
-				int valuePrint = arrayBuffer[consIndex];
-				consIndex = (consIndex + 1)%4;
-				Serial.println(valuePrint);
-
-				xSemaphoreGive(semaphoreMutex);
-				xSemaphoreGive(semaphoreFull);
-			}
-
+				int value = arrayBuffer[consIndex];
+				xQueueReceive(queue, &valuePrint, (TickType_t) 10);
+				if(value == 'O')
+					moveForward();
+				if(value == 'Z')
+					moveLeft();
+				if(value == '[')
+					moveRight();
+				if(value == 'z')
+					stop();
 		}
-		vTaskDelay(TASK_PERIOD);
 	}
 }
 
@@ -297,59 +287,6 @@ void EndTune() {
   beep(587, 375);
 }
 
-void tSerial(void *p) {
-  if(Serial.available()) {
-    blueToothVal = Serial.read();
-  }
-
-  if(blueToothVal == 'n') {
-//    digitalWrite(13, HIGH);
-//    if(lastValue != 'n') {
-//      Serial.println(F("LED is on."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'f') {
-//    digitalWrite(13, LOW);
-//    if(lastValue != 'f') {
-//      Serial.println(F("LED is off."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'O') {
-      //Forwards
-  }
-  else if(blueToothVal == 'P') {
-      //go backwards
-  }
-  else if(blueToothVal == '-') {
-      //turn 45 degrees Left
-  }
-  else if(blueToothVal == '.') {
-      //turn 45 degrees Right
-  }
-  else if(blueToothVal == 'Z') {
-      //Turn 90 degrees Left
-  }
-  else if(blueToothVal == '[') {
-      //turn 90 degrees Right
-  }
-  else if(blueToothVal == 'z') {
-      //Stop
-  }
-
-  for(;;){
-  		if(xSemaphoreTake(semaphore, (TickType_t) 10) == pdTRUE) {
-  			int toRead = blueToothVal;
-  			xQueueSendToBack(queue, (void *) &toRead, (TickType_t) 10);
-  			vTaskDelay(1);
-  		}
-  	}
-
-  delay(1000);
-}
-
-
 void tLED(void *p) {
 	portTickType xNextTickTime;
 	xNextTickTime = xTaskGetTickCount();
@@ -364,7 +301,7 @@ void tLED(void *p) {
 			stopModeVisual();
 		}
 		//Serial.println(valuePrint);
-		vTaskDelayUntil(&xNextTickTime, 1000); //1000 is arbitrary value, need to find actual value
+		vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value
 	}
 }
 
@@ -378,7 +315,7 @@ void tAudio(void *p){
 			EndTune();
 		}
 		//Serial.println(valuePrint);
-		vTaskDelayUntil(&xNextTickTime, 1000); //1000 is arbitrary value, need to find actual value
+		vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value
 	}
 }
 
