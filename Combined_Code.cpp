@@ -16,76 +16,95 @@
 #define BIN_3 10
 #define AIN_4 11
 
+int currentState = 0; //A global var to indicate if bot is stationary(0) or moving(1) or end(2) mainly for audio purposes
 
 extern HardwareSerial Serial;
 
 char blueToothVal;
 char lastValue;
 
-//SemaphoreHandle_t semaphore = NULL;
-//SemaphoreHandle_t semaphoreFull = NULL;
-//SemaphoreHandle_t semaphoreEmpty = NULL;
-//SemaphoreHandle_t semaphoreMutex = NULL;
-
+SemaphoreHandle_t semaphore = NULL;
 
 //unsigned long lastTime = 0;
 //unsigned long currentTime;
 
 //#define bufferSize 4
 //int arrayBuffer[bufferSize];
-//int prodIndex = 0;
-//int consIndex = 0 ;
+int prodIndex = 0;
+int consIndex = 0 ;
 
-//static signed portBASE_TYPE xHigherPriorityTaskWoken;
+void tSerial(void *p) {
+	for(;;){
+				
+		if(Serial.available()) {
+			if( xSemaphoreTake( semaphore, (TickType_t) portMAX_DELAY) == pdTRUE ) {
+					blueToothVal = Serial.read();
+					arrayBuffer[prodIndex] = blueToothVal;
+					prodIndex = (prodIndex + 1)%4;
+					xSemaphoreGive(semaphore);
+				}
+			}
+		}
 
+}
 
-//void INT0_ISR() {
-//	xHigherPriorityTaskWoken = pdFALSE;
-//	currentTime = millis();
-//	if (currentTime - lastTime > 300) {
-//		lastTime = currentTime;
-//		/* Unblock the task by releasing the semaphore. */
-//		xSemaphoreGiveFromISR( semaphore, &xHigherPriorityTaskWoken );
-//	}
-//	taskYIELD();
-//}
-//
-//void producer(void *p) {
-//	for(;;){
-//		if( xSemaphoreTake( semaphore, (TickType_t) portMAX_DELAY) == pdTRUE ) {
-//			if(xSemaphoreTake(semaphoreFull, (TickType_t) portMAX_DELAY) == pdTRUE){
-//				if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE)
-//				{
-//					arrayBuffer[prodIndex] = analogRead(POTENTIOMETER);
-//					prodIndex = (prodIndex + 1)%4;
-//					xSemaphoreGive(semaphoreMutex);
-//					xSemaphoreGive(semaphoreEmpty);
-//				}
-//
-//			}
-//		}
-//
-//	}
-//}
-//
-//void consumer(void *p) {
-//	for(;;){
-//		if(xSemaphoreTake(semaphoreEmpty, (TickType_t) portMAX_DELAY) == pdTRUE)
-//		{
-//			if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE){
-//				//Read from circular buffer
-//				int valuePrint = arrayBuffer[consIndex];
-//				consIndex = (consIndex + 1)%4;
-//				Serial.println(valuePrint);
-//
-//				xSemaphoreGive(semaphoreMutex);
-//				xSemaphoreGive(semaphoreFull);
-//			}
-//
-//		}
-//		vTaskDelay(TASK_PERIOD);
-//	}
-//}
+  if(blueToothVal == 'n') {
+//    digitalWrite(13, HIGH);
+//    if(lastValue != 'n') {
+//      Serial.println(F("LED is on."));
+//    }
+//    lastValue = blueToothVal;
+  }
+  else if(blueToothVal == 'f') {
+//    digitalWrite(13, LOW);
+//    if(lastValue != 'f') {
+//      Serial.println(F("LED is off."));
+//    }
+//    lastValue = blueToothVal;
+  }
+  else if(blueToothVal == 'O') {
+      //Forwards
+  }
+  else if(blueToothVal == 'P') {
+      //go backwards
+  }
+  else if(blueToothVal == '-') {
+      //turn 45 degrees Left
+  }
+  else if(blueToothVal == '.') {
+      //turn 45 degrees Right
+  }
+  else if(blueToothVal == 'Z') {
+      //Turn 90 degrees Left
+  }
+  else if(blueToothVal == '[') {
+      //turn 90 degrees Right
+  }
+  else if(blueToothVal == 'z') {
+      //Stop
+  }
+
+  delay(1000);
+}
+
+void consumer(void *p) {
+	for(;;){
+		if(xSemaphoreTake(semaphoreEmpty, (TickType_t) portMAX_DELAY) == pdTRUE)
+		{
+			if(xSemaphoreTake(semaphoreMutex, (TickType_t) portMAX_DELAY) == pdTRUE){
+				//Read from circular buffer
+				int valuePrint = arrayBuffer[consIndex];
+				consIndex = (consIndex + 1)%4;
+				Serial.println(valuePrint);
+
+				xSemaphoreGive(semaphoreMutex);
+				xSemaphoreGive(semaphoreFull);
+			}
+
+		}
+		vTaskDelay(TASK_PERIOD);
+	}
+}
 
 void connectionEstablishedVisual(){
 	byte pattern = B11000000;
@@ -269,51 +288,6 @@ void EndTune() {
   beep(523, 250);    
   beep(587, 375);
 }
-
-void tSerial() {
-  if(Serial.available()) {
-    blueToothVal = Serial.read();
-  }
-
-  if(blueToothVal == 'n') {
-//    digitalWrite(13, HIGH);
-//    if(lastValue != 'n') {
-//      Serial.println(F("LED is on."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'f') {
-//    digitalWrite(13, LOW);
-//    if(lastValue != 'f') {
-//      Serial.println(F("LED is off."));
-//    }
-//    lastValue = blueToothVal;
-  }
-  else if(blueToothVal == 'O') {
-      //Forwards
-  }
-  else if(blueToothVal == 'P') {
-      //go backwards
-  }
-  else if(blueToothVal == '-') {
-      //turn 45 degrees Left
-  }
-  else if(blueToothVal == '.') {
-      //turn 45 degrees Right
-  }
-  else if(blueToothVal == 'Z') {
-      //Turn 90 degrees Left
-  }
-  else if(blueToothVal == '[') {
-      //turn 90 degrees Right
-  }
-  else if(blueToothVal == 'z') {
-      //Stop
-  }
-
-  delay(1000);
-}
-
 
 void tLED(void *p){
 	
