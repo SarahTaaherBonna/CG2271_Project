@@ -4,6 +4,8 @@
 #include <task.h>
 #include <semphr.h>
 
+extern HardwareSerial Serial;
+
 #define STACK_SIZE	200
 #define MAX_PWM_VOLTAGE 240
 #define REARLED_PIN 2
@@ -17,32 +19,30 @@
 #define AIN_4 11
 #define bufferSize 4
 
-int arrayBuffer[bufferSize];
-int currentState = 0; //A global var to indicate if bot is stationary(0) or moving(1) or end(2) mainly for audio purposes
-xQueueHandle queue;
+xQueueHandle queueMotor;
+xQueueHandle queueLED;
+xQueueHandle queueAud;
 SemaphoreHandle_t semaphore = NULL;
-int index = 0;
-//byte moving[index];
-
-extern HardwareSerial Serial;
-
 char blueToothVal;
 char lastValue;
-
-
 int prodIndex = 0;
 int consIndex = 0 ;
+//int arrayBuffer[bufferSize];
+//int currentState = 0; //A global var to indicate if bot is stationary(0) or moving(1) or end(2) mainly for audio purposes
 
 void tSerial(void *p) {
 	for(;;){
-
-		if(Serial.available()) {
-			if( xSemaphoreTake( semaphore, (TickType_t) portMAX_DELAY) == pdTRUE ) {
-				blueToothVal = Serial.read();
-				xQueueSendToBack(queue, (void *) &blueToothVal, (TickType_t) 10);
-				vTaskDelay(1);
-			}
-		}
+		//semaphore = xSemaphoreCreateMutex();
+		//if(semaphore != NULL && xSemaphoreTake(semaphore, (TickType_t) 10) == pdTRUE){
+			//if(Serial.available()) {
+				//	char blueToothVal = Serial.read();
+					//delay(100);
+					xQueueSendToBack(queueMotor, (void *) &blueToothVal, (TickType_t) 10);
+					xQueueSendToBack(queueLED, (void *) &blueToothVal, (TickType_t) 10);
+					xQueueSendToBack(queueAud, (void *) &blueToothVal, (TickType_t) 10);
+					//xSemaphoreGive(semaphore);
+					vTaskDelay(1);
+			//}
 	}
 
 }
@@ -82,16 +82,22 @@ void stop(){
 void tMotorControl(void *p) {
 	for(;;){
 		//Read from circular buffer
-		int value = arrayBuffer[consIndex];
-		xQueueReceive(queue, &value, (TickType_t) 10);
-		if(value == 'O')
-			moveForward();
-		if(value == 'Z')
-			moveLeft();
-		if(value == '[')
-			moveRight();
-		if(value == 'z')
-			stop();
+		//int value = arrayBuffer[consIndex];
+		int value;
+		if(semaphore != NULL && xSemaphoreTake(semaphore, (TickType_t) 10) == pdTRUE){
+
+			if(xQueueReceive(queueMotor, &value, (TickType_t) 10)){
+				if(value == 'O')
+					moveForward();
+				if(value == 'Z')
+					moveLeft();
+				if(value == '[')
+					moveRight();
+				if(value == 'z')
+					stop();
+				xSemaphoreGive(semaphore);
+			}
+		}
 	}
 }
 
@@ -99,7 +105,7 @@ void tMotorControl(void *p) {
 void connectionEstablishedVisual(){
 	byte pattern = B11000000;
 	digitalWrite(LATCH,LOW);
-	shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,moving[index]);
+	shiftOut(DATA,CLOCK_SHIFTREG,MSBFIRST,pattern);
 	digitalWrite(LATCH,HIGH);
 	digitalWrite(LATCH, LOW);
 }
@@ -282,31 +288,36 @@ void EndTune() {
 }
 
 void tLED(void *p) {
-	portTickType xNextTickTime;
-	xNextTickTime = xTaskGetTickCount();
+	//portTickType xNextTickTime;
+	//xNextTickTime = xTaskGetTickCount();
 	for(;;) {
 		int valueRun;
-		xQueueReceive(queue, &valueRun, (TickType_t) 10);
-		if(valueRun == 'O' || valueRun == 'P' || valueRun == 'Z' || valueRun == '[') {
-			movingModeVisual();
-		}
-		else {
-			stopModeVisual();
+		if(semaphore != NULL && xSemaphoreTake(semaphore, (TickType_t) 10) == pdTRUE){
+			if(xQueueReceive(queueLED, &valueRun, (TickType_t) 10)){
+				if(valueRun == 'O' || valueRun == 'P' || valueRun == 'Z' || valueRun == '[') {
+					movingModeVisual();
+				}
+				else {
+					stopModeVisual();
+				}
+				xSemaphoreGive(semaphore);
+			}
 		}
 	}
 }
 
 void tAudio(void *p){
-	portTickType xNextTickTime;
-	xNextTickTime = xTaskGetTickCount();
+	//portTickType xNextTickTime;
+	//xNextTickTime = xTaskGetTickCount();
 	for(;;) {
 		int valueRun;
-		xQueueReceive(queue, &valueRun, (TickType_t) 10);
-		if(valueRun == 'z') {
-			EndTune();
-		}
-		else {
-			BabyShark();
+		if(xQueueReceive(queueAud, &valueRun, (TickType_t) 10)) {
+			if(valueRun == 'z') {
+				EndTune();
+			}
+			else {
+				BabyShark();
+			}
 		}
 	}
 }
@@ -317,15 +328,25 @@ void setup(){
 	pinMode(LATCH,OUTPUT);
 	pinMode(DATA,OUTPUT);
 	Serial.begin(9600);
-	queue = xQueueCreate(STACK_SIZE, sizeof(int));
-	semaphore = xSemaphoreCreateBinary();
-	xSemaphoreGive(semaphore);
+	queueMotor = xQueueCreate(STACK_SIZE, sizeof(int));
+	queueLED = xQueueCreate(STACK_SIZE, sizeof(int));
+	queueAud = xQueueCreate(STACK_SIZE, sizeof(int));
 }
 
 void loop() {
-	xTaskCreate(tSerial, "Producer", STACK_SIZE, (void * ) 1, 1, NULL);
+	//char blueToothVal;
+	if(Serial.available()) {
+				blueToothVal = Serial.read();
+				Serial.println(F("tSerial here"));
+
+	}
+	xTaskCreate(tSerial, "Serial", STACK_SIZE, (void * ) blueToothVal, 2, NULL);
 	xTaskCreate(tMotorControl, "ConsumerMotor", STACK_SIZE, (void *) 1, 1, NULL);
 	xTaskCreate(tAudio, "Audio", STACK_SIZE, (void * ) 1, 1, NULL);
 	xTaskCreate(tLED, "ConsumerLED", STACK_SIZE, (void * ) 1, 1, NULL);
-	vTaskStartScheduler();
+
+
+//delay(100);
+			vTaskStartScheduler();
+
 }
