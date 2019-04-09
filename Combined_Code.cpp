@@ -19,7 +19,6 @@
 int currentState = 0; //A global var to indicate if bot is stationary(0) or moving(1) or end(2) mainly for audio purposes
 xQueueHandle queue;
 SemaphoreHandle_t semaphore = NULL;
-SemaphoreHandle_t semaphoreMutex = NULL;
 int index = 0;
 //byte moving[index];
 
@@ -99,7 +98,6 @@ void tMotorControl(void *p) {
 					stop();
 		}
 	}
-}
 
 
 void connectionEstablishedVisual(){
@@ -293,15 +291,13 @@ void tLED(void *p) {
 	for(;;) {
 		int valueRun;
 		xQueueReceive(queue, &valueRun, (TickType_t) 10);
-		if(valueRun == 'O' || valueRun == 'P' || valueRun == '-' || valueRun == '.'
-			|| valueRun == 'Z' || valueRun == '[') {
+		if(valueRun == 'O' || valueRun == 'P' || valueRun == 'Z' || valueRun == '[') {
 			movingModeVisual();
 		}
 		else {
 			stopModeVisual();
 		}
-		//Serial.println(valuePrint);
-		vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value
+		//vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value - continuously occuring so no delays here
 	}
 }
 
@@ -314,8 +310,10 @@ void tAudio(void *p){
 		if(valueRun == 'z') {
 			EndTune();
 		}
+		else
+			BabyShark();
 		//Serial.println(valuePrint);
-		vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value
+		//vTaskDelayUntil(&xNextTickTime, 100); //1000 is arbitrary value, need to find actual value - no delays for audio or we are screwed
 	}
 }
 
@@ -327,17 +325,13 @@ void setup(){
   Serial.begin(9600);
   queue = xQueueCreate(STACK_SIZE, sizeof(int));
   semaphore = xSemaphoreCreateBinary();
-//  attachInterrupt(0, INT0_ISR, RISING);
-//	Serial.begin(115200);
-//	attachInterrupt(0, INT0_ISR, RISING);
-//	semaphoreFull = xSemaphoreCreateCounting(4, 4);
-//	semaphoreEmpty = xSemaphoreCreateCounting(4,0);
-//	semaphoreMutex = xSemaphoreCreateMutex();
+  xSemaphoreGive(sempahore);
 }
 
 void loop() {
 	xTaskCreate(tSerial, "Producer", STACK_SIZE, (void * ) 1, 1, NULL);
-	xTaskCreate(tAudio, "ConsumerAudio", STACK_SIZE, (void * ) 1, 1, NULL);
+	xTaskCreate(tMotorControl, "ConsumerMotor", STACK_SIZE, (void *) 1, 1, NULL);
+	xTaskCreate(tAudio, "Audio", STACK_SIZE, (void * ) 1, 1, NULL);
 	xTaskCreate(tLED, "ConsumerLED", STACK_SIZE, (void * ) 1, 1, NULL);
 	vTaskStartScheduler();
 }
